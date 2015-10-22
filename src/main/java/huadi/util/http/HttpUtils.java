@@ -21,7 +21,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-
+/**
+ * HTTP utils based HttpClient
+ */
 public class HttpUtils {
 
     private static CloseableHttpClient httpClient;
@@ -39,9 +41,7 @@ public class HttpUtils {
     }
 
     public static String get(String url) {
-        HttpGet httpGet = new HttpGet(url);
-
-        return doRequest(httpGet);
+        return doRequest(new HttpGet(url));
     }
 
     public static String post(String url, Map<String, String> params) {
@@ -70,9 +70,5 @@ public class HttpUtils {
         }
 
         return responseStr;
-    }
-
-    public static void main(String[] args) {
-        System.out.println(get("http://localhost:8000"));
     }
 }
