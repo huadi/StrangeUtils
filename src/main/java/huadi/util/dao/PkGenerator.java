@@ -31,7 +31,7 @@ public class PkGenerator {
           `id` int(11) NOT NULL AUTO_INCREMENT,
           `k` varchar(16) NOT NULL,
           `v` bigint(20) NOT NULL,
-          `step` int(10) unsigned NOT NULL,
+          `step` int(10) unsigned NOT NULL DEFAULT 1,
           `modify_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           PRIMARY KEY (`id`),
           UNIQUE KEY `IDX_k_UNIQUE` (`k`)
