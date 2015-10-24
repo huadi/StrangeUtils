@@ -42,26 +42,24 @@ public class PkGenerator {
     private String valueColumn = "v";
     private String stepColumn = "step";
 
-
     private String keyName = "user_id";
 
-    private PrimaryKey pk = new PrimaryKey(0, -1); // 初始化一个不能用的PK, 第一次使用会触发更新. 省得做null判断.
 
+    private PkPool pk = new PkPool(0, -1); // 初始化一个不能用的pool, 第一次使用会触发更新. 省得每次在get方法中做null判断.
 
     public Long get() {
-        long primaryKey = pk.next();
-        if (primaryKey == PrimaryKey.INVALID_VALUE) {
+        long primaryKey;
+        if ((primaryKey = pk.next()) == PkPool.INVALID_VALUE) {
             synchronized (this) {
-                while ((primaryKey = pk.next()) == PrimaryKey.INVALID_VALUE) {
+                while ((primaryKey = pk.next()) == PkPool.INVALID_VALUE) {
                     pk = load();
                 }
             }
         }
-
         return primaryKey;
     }
 
-    private PrimaryKey load() {
+    private PkPool load() {
         Connection conn = null;
         ResultSet rs = null;
         PreparedStatement stmt = null;
@@ -70,13 +68,16 @@ public class PkGenerator {
 
             int retry = 0;
             while (true) {
-                stmt = conn.prepareStatement(getSelectSql());
-                stmt.setString(1, keyName);
+                stmt = conn.prepareStatement(
+                        "SELECT * FROM " + sequenceTableName + " WHERE " + keyColumn + "='" + keyName + "'");
                 rs = stmt.executeQuery();
                 rs.next();
                 Long oldValue = rs.getLong(valueColumn);
                 Long stepValue = rs.getLong(stepColumn);
                 Long newValue = oldValue + stepValue;
+                if (newValue < Long.MIN_VALUE + stepValue) {
+                    throw new RuntimeException("Primary key overflow.");
+                }
 
                 try {
                     rs.close();
@@ -89,16 +90,15 @@ public class PkGenerator {
                     System.err.println("Exception on close resource." + e);
                 }
 
-                stmt = conn.prepareStatement(getUpdateSql());
-                stmt.setLong(1, newValue);
-                stmt.setString(2, keyName);
-                stmt.setLong(3, oldValue);
-                int affectedRows = stmt.executeUpdate();
-                if (affectedRows != 0) {
-                    return new PrimaryKey(oldValue + 1, oldValue + stepValue);
+                stmt = conn.prepareStatement(
+                        "UPDATE " + sequenceTableName + " SET " + valueColumn + "=" + newValue +
+                                " WHERE " + keyColumn + "='" + keyName + "' AND " + valueColumn + "=" + oldValue);
+                if (stmt.executeUpdate() != 0) {
+                    // 这里使用oldValue作为pk池, 这样所有小于db中valueColumn域的pk都可以认为是使用过的.
+                    return new PkPool(oldValue + 1, oldValue + stepValue);
                 }
 
-                if (++retry > 10) {
+                if (++retry > 3) {
                     System.err.println(
                             "PK generate failed " + retry + " times. KeyName: \"" + keyName + "\", old: " + oldValue
                                     + ", new: " + newValue + ", step: " + stepValue + ".");
@@ -125,25 +125,16 @@ public class PkGenerator {
         }
     }
 
-    private String getSelectSql() {
-        return "SELECT * FROM " + sequenceTableName + " WHERE " + keyColumn + "=?";
-    }
-
-    private String getUpdateSql() {
-        return "UPDATE " + sequenceTableName + " SET " + valueColumn + "=? WHERE " + keyColumn + "=? AND " +
-                valueColumn + "=?";
-    }
-
-    /**
-     * pk和max必须保证原子更新, 所以这里用一个class封装.
+    /*
+     * 对于get方法来讲, pk和max必须保证原子更新, 所以这里用一个class封装.
      */
-    private static class PrimaryKey {
-        private static final long INVALID_VALUE = Long.MIN_VALUE;
+    private static class PkPool {
+        static final long INVALID_VALUE = Long.MIN_VALUE;
 
-        private AtomicLong pk;
-        private long max;
+        AtomicLong pk;
+        long max;
 
-        private PrimaryKey(long pk, long max) {
+        PkPool(long pk, long max) {
             this.pk = new AtomicLong(pk);
             this.max = max;
         }
@@ -160,7 +151,7 @@ public class PkGenerator {
     }
 
     /**
-     * @param connStr jdbc:mysql://mysqlhost:3306/dbname 注意要有db名
+     * @param connStr jdbc:mysql://yommou.com:3306/jwlwl 请注意需要有db名.
      */
     public void setConnStr(String connStr) {
         this.connStr = connStr;
