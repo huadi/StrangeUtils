@@ -71,7 +71,10 @@ public class PkGenerator {
                 stmt = conn.prepareStatement(
                         "SELECT * FROM " + sequenceTableName + " WHERE " + keyColumn + "='" + keyName + "'");
                 rs = stmt.executeQuery();
-                rs.next();
+                if (!rs.next()) {
+                    throw new RuntimeException(
+                            "No result in table \"" + sequenceTableName + "\" with key name \"" + keyName + "\".");
+                }
                 Long oldValue = rs.getLong(valueColumn);
                 Long stepValue = rs.getLong(stepColumn);
                 Long newValue = oldValue + stepValue;
