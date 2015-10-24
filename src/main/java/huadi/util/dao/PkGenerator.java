@@ -77,6 +77,10 @@ public class PkGenerator {
                 }
                 Long oldValue = rs.getLong(valueColumn);
                 Long stepValue = rs.getLong(stepColumn);
+                if (stepValue == 0L) {
+                    throw new RuntimeException(
+                            "Setting step to 0 will cause an endless loop while getting new PK pool.");
+                }
                 Long newValue = oldValue + stepValue;
                 if (newValue < Long.MIN_VALUE + stepValue) {
                     throw new RuntimeException("Primary key overflow.");
