@@ -30,7 +30,6 @@ function javaHashCode(str) {
 /**
  * 计算String的MD5.
  * 转载注明出处: http://pajhome.org.uk/crypt/md5/md5.html
-
  */
 var md5 = function () {
     return new function () {
